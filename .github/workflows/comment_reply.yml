@@ -1,0 +1,54 @@
+name: FB + Insta कांदा Auto Reply
+
+# दर 15 मिनिटांनी. Schedule तेव्हाच चालतो जेव्हा repo Variable  LIVE = true  असेल.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      send:
+        description: 'खरंच रिप्लाय पाठवायचे? (no = फक्त कोणाला काय जाईल ते दाखव)'
+        type: choice
+        options: ['no', 'yes']
+        default: 'no'
+
+concurrency:
+  group: comment-reply
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    if: github.event_name == 'workflow_dispatch' || vars.LIVE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.send != 'yes' }}
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: pip install -q requests
+
+      - name: कमेंट्सना रिप्लाय
+        env:
+          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+        run: python comment_reply.py
+
+      - name: रिप्लाय गेलेल्या कमेंट्सची यादी सेव्ह करणे
+        if: env.DRY_RUN != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state
+          git diff --cached --quiet && exit 0
+          git commit -m "replied list update"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done

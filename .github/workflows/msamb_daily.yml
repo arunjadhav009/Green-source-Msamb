@@ -1,0 +1,73 @@
+name: MSAMB Daily Post (FB + Insta)
+
+# रोज संध्याकाळी 7:00 (IST) = 13:30 UTC. GitHub कधी कधी 5-20 मिनिटं उशिरा चालवतो.
+# Schedule तेव्हाच चालतो जेव्हा repo Variable  LIVE = true  असेल (Settings → Secrets and variables → Actions → Variables).
+on:
+  schedule:
+    - cron: '30 13 * * *'
+  workflow_dispatch:
+    inputs:
+      post:
+        description: 'FB/Insta वर खरंच पोस्ट करायचं? (no = फक्त images बनवून तपासा)'
+        type: choice
+        options: ['no', 'yes']
+        default: 'no'
+
+concurrency:
+  group: msamb-daily
+  cancel-in-progress: false
+
+jobs:
+  post:
+    if: github.event_name == 'workflow_dispatch' || vars.LIVE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.post != 'yes' }}
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Devanagari Fonts + Chromium
+        run: |
+          sudo apt-get update -q
+          sudo apt-get remove -y fonts-nakula fonts-sahadeva || true
+          sudo apt-get install -y -q fonts-noto-core fonts-noto-extra fonts-noto-ui-core
+          mkdir -p ~/.local/share/fonts
+          curl -s -L -o ~/.local/share/fonts/NotoSansDevanagari-Bold.ttf "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf"
+          curl -s -L -o ~/.local/share/fonts/NotoSansDevanagari-Regular.ttf "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf"
+          fc-cache -f
+          pip install -q playwright requests
+          playwright install --with-deps chromium
+
+      - name: MSAMB डेटा घेऊन images बनवणे आणि पोस्ट करणे
+        env:
+          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+        run: python generate_and_post.py
+
+      - name: Images (तपासण्यासाठी, 3 दिवस राहतील)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mandi-images
+          path: mandi_page_*.png
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: रोजचा डेटा repo मध्ये सेव्ह करणे
+        if: env.DRY_RUN != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && exit 0
+          git commit -m "MSAMB data $(TZ=Asia/Kolkata date +%F)"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
