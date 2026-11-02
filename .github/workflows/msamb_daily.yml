@@ -68,6 +68,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
+          # फक्त शेवटच्या 3 दिवसांच्या CSV ठेवायच्या, जुन्या काढून टाकायच्या
+          ls data/msamb/*.csv 2>/dev/null | sort | head -n -3 | xargs -r git rm -q --
           git diff --cached --quiet && exit 0
           git commit -m "MSAMB data $(TZ=Asia/Kolkata date +%F)"
           for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
