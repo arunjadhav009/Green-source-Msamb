@@ -269,9 +269,16 @@ body {{ width: 1080px; height: 1350px; background: #fbf5e9; font-family: 'Noto S
 
 def main():
     # डेटा थेट MSAMB वेबसाइटवरून (Google Sheet / n8n ची गरज नाही)
-    from msamb_fetch import fetch_rows, build_pages, save_csv
-    rows = fetch_rows()
-    pages_data = build_pages(rows)
+    # आजचा डेटा आला तरच पोस्ट: नसेल तर 5-5 मिनिटांनी 45 मिनिटांपर्यंत वाट पाहणे
+    from msamb_fetch import fetch_rows, fetch_today_rows, build_pages, save_csv
+    if DRY_RUN:
+        rows = fetch_rows()
+    else:
+        rows = fetch_today_rows(wait_minutes=45, every_minutes=5)
+        if rows is None:
+            print("❌ 45 मिनिटं थांबूनही MSAMB वर आजचा डेटा आला नाही. जुना डेटा पोस्ट करणार नाही — आज पोस्ट नाही.")
+            sys.exit(1)
+    pages_data = build_pages(rows, allow_old=DRY_RUN)
     if not DRY_RUN:
         save_csv(rows)
     print(f"Total pages: {len(pages_data)} | Date: {pages_data[0]['json']['PostDate']}"

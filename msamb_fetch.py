@@ -8,6 +8,7 @@ import csv
 import json
 import re
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -85,20 +86,44 @@ def _qty(r):
         return 0.0
 
 
-def build_pages(rows):
+def today_rows(rows):
     today = datetime.now(IST)
     targets = {today.strftime("%d/%m/%Y"), today.strftime("%d-%m-%Y")}
-    selected = [r for r in rows if r["Date"].strip() in targets]
+    return [r for r in rows if r["Date"].strip() in targets]
+
+
+def fetch_today_rows(wait_minutes=45, every_minutes=5):
+    """आजचा डेटा येईपर्यंत थांबणे. आला की लगेच परत. वेळेत आला नाही तर None."""
+    deadline = time.time() + wait_minutes * 60
+    while True:
+        rows = fetch_rows()
+        if today_rows(rows):
+            return rows
+        left = deadline - time.time()
+        if left <= 0:
+            return None
+        nap = min(every_minutes * 60, left)
+        print(f"⏳ MSAMB वर आजचा डेटा अजून नाही. {int(nap // 60)} मिनिटांनी परत तपासतो "
+              f"(अजून {int(left // 60)} मिनिटं वाट पाहीन)...", flush=True)
+        time.sleep(nap)
+
+
+def build_pages(rows, allow_old=False):
+    today = datetime.now(IST)
+    selected = today_rows(rows)
     post_date = today.strftime("%d/%m/%Y")
 
-    if not selected:  # आजचा डेटा नसेल तर सर्वात शेवटची तारीख
+    if not selected:  # आजचा डेटा नाही
+        if not allow_old:
+            print("❌ आजचा MSAMB डेटा नाही — जुना डेटा पोस्ट करणार नाही.")
+            sys.exit(1)
         dated = [r["Date"].strip() for r in rows if r["Date"].strip()]
         if not dated:
             print("❌ MSAMB डेटामध्ये तारीख सापडली नाही.")
             sys.exit(1)
         post_date = max(dated, key=_date_num)
         selected = [r for r in rows if r["Date"].strip() == post_date]
-        print(f"⚠️ आजचा डेटा अजून नाही, शेवटची तारीख वापरत आहे: {post_date}")
+        print(f"⚠️ [TEST] आजचा डेटा अजून नाही, तपासण्यासाठी शेवटची तारीख वापरत आहे: {post_date}")
 
     selected.sort(key=_qty, reverse=True)
     total = -(-len(selected) // RECORDS_PER_PAGE)

@@ -1,12 +1,14 @@
 name: MSAMB Daily Post (FB + Insta)
 
-# रोज संध्याकाळी 7:00 (IST) = 13:30 UTC. GitHub कधी कधी 5-20 मिनिटं उशिरा चालवतो.
-# Schedule तेव्हाच चालतो जेव्हा repo Variable  LIVE = true  असेल (Settings → Secrets and variables → Actions → Variables).
+# रोज संध्याकाळी 7:00 (IST) ला Hostinger (ajreelsmedia.in) चं cron घड्याळ हा workflow चालवतं.
+# आजचा डेटा आला तरच पोस्ट (45 मिनिटांपर्यंत वाट). Variable LIVE = false केलं तर Hostinger चे runs थांबतात.
 on:
-  schedule:
-    - cron: '30 13 * * *'
   workflow_dispatch:
     inputs:
+      auto:
+        description: 'Hostinger घड्याळाने चालवलं (हाताने चालवताना बदलू नका)'
+        required: false
+        default: 'false'
       post:
         description: 'FB/Insta वर खरंच पोस्ट करायचं? (no = फक्त images बनवून तपासा)'
         type: choice
@@ -19,13 +21,14 @@ concurrency:
 
 jobs:
   post:
-    if: github.event_name == 'workflow_dispatch' || vars.LIVE == 'true'
+    # हाताने चालवलं तर नेहमी चालतो. Hostinger (auto=true) ने चालवलं तर फक्त LIVE = true असताना.
+    if: inputs.auto != 'true' || vars.LIVE == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     permissions:
       contents: write
     env:
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.post != 'yes' }}
+      DRY_RUN: ${{ inputs.post != 'yes' }}
 
     steps:
       - name: Checkout Repo

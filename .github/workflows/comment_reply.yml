@@ -1,11 +1,13 @@
 name: FB + Insta कांदा Auto Reply
 
-# दर 15 मिनिटांनी. Schedule तेव्हाच चालतो जेव्हा repo Variable  LIVE = true  असेल.
+# दर 15 मिनिटांनी Hostinger (ajreelsmedia.in) चं cron घड्याळ हा workflow चालवतं. LIVE = false केलं तर थांबतो.
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
+      auto:
+        description: 'Hostinger घड्याळाने चालवलं (हाताने चालवताना बदलू नका)'
+        required: false
+        default: 'false'
       send:
         description: 'खरंच रिप्लाय पाठवायचे? (no = फक्त कोणाला काय जाईल ते दाखव)'
         type: choice
@@ -18,13 +20,14 @@ concurrency:
 
 jobs:
   reply:
-    if: github.event_name == 'workflow_dispatch' || vars.LIVE == 'true'
+    # हाताने चालवलं तर नेहमी चालतो. Hostinger (auto=true) ने चालवलं तर फक्त LIVE = true असताना.
+    if: inputs.auto != 'true' || vars.LIVE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     env:
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.send != 'yes' }}
+      DRY_RUN: ${{ inputs.send != 'yes' }}
 
     steps:
       - name: Checkout Repo
